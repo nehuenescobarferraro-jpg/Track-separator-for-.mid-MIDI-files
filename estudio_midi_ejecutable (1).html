@@ -1,0 +1,613 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Estudio MIDI Separador</title>
+    <!-- Tailwind CSS para el diseño -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- React y ReactDOM para la interfaz -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    
+    <!-- Babel para compilar el código de React en el navegador -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+    <style>
+        body { margin: 0; padding: 0; background-color: #030712; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef, useCallback } = React;
+
+        // --- Íconos SVG (Reemplazando a lucide-react para versión offline/standalone) ---
+        const IconUpload = ({size=24, className=""}) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242"/><path d="M12 12v9"/><path d="m16 16-4-4-4 4"/></svg>;
+        const IconPlay = ({size=24, className="", fill="none"}) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill={fill} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><polygon points="5 3 19 12 5 21 5 3"/></svg>;
+        const IconSquare = ({size=24, className="", fill="none"}) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill={fill} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><rect width="18" height="18" x="3" y="3" rx="2"/></svg>;
+        const IconVolume2 = ({size=24, className=""}) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>;
+        const IconVolumeX = ({size=24, className=""}) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" x2="17" y1="9" y2="15"/><line x1="17" x2="23" y1="9" y2="15"/></svg>;
+        const IconDownload = ({size=24, className=""}) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>;
+        const IconMusic = ({size=24, className=""}) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>;
+        const IconLoader2 = ({size=24, className=""}) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>;
+        const IconAlertCircle = ({size=24, className=""}) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg>;
+        const IconFileAudio = ({size=24, className=""}) => <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M17.5 22h.5c.5 0 1-.2 1.4-.6.4-.4.6-.9.6-1.4V7.5L14.5 2H6c-.5 0-1 .2-1.4.6C4.2 3.1 4 3.6 4 4v3"/><polyline points="14 2 14 8 20 8"/><path d="M10 20v-1a2 2 0 1 1 4 0v1a2 2 0 1 1-4 0Z"/><path d="M6 20v-1a2 2 0 1 0-4 0v1a2 2 0 1 0 4 0Z"/><path d="M2 19v-3a6 6 0 0 1 12 0v3"/></svg>;
+
+
+        // --- Componente Principal de la Aplicación ---
+        const MidiStudioApp = () => {
+          const [status, setStatus] = useState('loading-libs'); 
+          const [errorMessage, setErrorMessage] = useState('');
+          const [fileName, setFileName] = useState('');
+          const [tracks, setTracks] = useState([]); 
+          const [isPlaying, setIsPlaying] = useState(false);
+          const [isDragging, setIsDragging] = useState(false);
+          
+          // Estados Globales (Maestros)
+          const [globalPreset, setGlobalPreset] = useState('8bit');
+          const [globalFades, setGlobalFades] = useState(false);
+
+          const audioNodesRef = useRef({});
+          const fileInputRef = useRef(null);
+          const masterVolumeRef = useRef(null);
+
+          // Generador de configuraciones de sintetizador (Preajustes y Fades)
+          const getSynthConfig = (preset, fades) => {
+            const attack = fades ? 0.3 : 0.01;
+            const release = fades ? 1.5 : 0.1;
+            
+            switch(preset) {
+              case 'tecno': 
+                return [window.Tone.FMSynth, { envelope: { attack, release }, modulationIndex: 10 }];
+              case 'clasica': 
+                return [window.Tone.Synth, { oscillator: { type: "triangle" }, envelope: { attack: fades ? 0.8 : 0.1, decay: 0.2, sustain: 0.8, release: fades ? 2.0 : 0.5 } }];
+              case 'acustica': 
+                return [window.Tone.Synth, { oscillator: { type: "sine" }, envelope: { attack, decay: 1.0, sustain: 0.1, release } }];
+              case 'electronica': 
+                return [window.Tone.Synth, { oscillator: { type: "sawtooth" }, envelope: { attack, release } }];
+              case 'rock': 
+                return [window.Tone.Synth, { oscillator: { type: "square8" }, envelope: { attack, release } }];
+              case '8bit': 
+              default: 
+                return [window.Tone.Synth, { oscillator: { type: "square" }, envelope: { attack, decay: 0.1, sustain: 0.2, release } }];
+            }
+          };
+
+          // Función para crear un nuevo Synth basado en los ajustes
+          const createSynth = (preset, fades) => {
+            const [SynthType, config] = getSynthConfig(preset, fades);
+            return new window.Tone.PolySynth(SynthType, config);
+          };
+
+          // Cargar librerías dinámicamente
+          useEffect(() => {
+            const loadScript = (src) => {
+              return new Promise((resolve, reject) => {
+                if (document.querySelector(`script[src="${src}"]`)) {
+                  resolve();
+                  return;
+                }
+                const script = document.createElement('script');
+                script.src = src;
+                script.crossOrigin = 'anonymous';
+                script.onload = resolve;
+                script.onerror = reject;
+                document.body.appendChild(script);
+              });
+            };
+
+            const loadLibraries = async () => {
+              try {
+                await Promise.all([
+                  loadScript('https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js'),
+                  loadScript('https://unpkg.com/@tonejs/midi'),
+                  loadScript('https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js')
+                ]);
+                setStatus('idle');
+              } catch (err) {
+                setStatus('error');
+                setErrorMessage('Error al cargar las librerías de audio. Revisa tu conexión a internet.');
+              }
+            };
+
+            loadLibraries();
+          }, []);
+
+          // Limpiar al desmontar
+          useEffect(() => {
+            return () => {
+              if (window.Tone) {
+                window.Tone.Transport.stop();
+                window.Tone.Transport.cancel();
+              }
+              Object.values(audioNodesRef.current).forEach(({ synth, channel }) => {
+                synth.dispose();
+                channel.dispose();
+              });
+            };
+          }, []);
+
+          const processMidiFile = async (file) => {
+            setStatus('processing');
+            setErrorMessage('');
+            setFileName(file.name);
+
+            try {
+              const arrayBuffer = await file.arrayBuffer();
+              const MidiClass = window.Midi || (window.Tone && window.Tone.Midi);
+              if (!MidiClass) throw new Error("Librería MIDI no cargada.");
+
+              const midiData = new MidiClass(arrayBuffer);
+              const notesByPitch = {};
+
+              // Agrupar notas
+              midiData.tracks.forEach(track => {
+                track.notes.forEach(note => {
+                  if (!notesByPitch[note.name]) {
+                    notesByPitch[note.name] = [];
+                  }
+                  notesByPitch[note.name].push({
+                    name: note.name,
+                    midi: note.midi,
+                    time: note.time,
+                    duration: note.duration,
+                    velocity: note.velocity
+                  });
+                });
+              });
+
+              const pitchKeys = Object.keys(notesByPitch);
+              if (pitchKeys.length === 0) {
+                throw new Error("No se encontraron notas en este archivo MIDI.");
+              }
+
+              // Limpiar
+              Object.values(audioNodesRef.current).forEach(({ synth, channel }) => {
+                synth.dispose();
+                channel.dispose();
+              });
+              audioNodesRef.current = {};
+              
+              if (!masterVolumeRef.current) {
+                masterVolumeRef.current = new window.Tone.Volume(-10).toDestination();
+              }
+
+              const newTracks = [];
+
+              pitchKeys.forEach(pitch => {
+                const channel = new window.Tone.Channel().connect(masterVolumeRef.current);
+                
+                // Creamos el sintetizador por defecto (8bit, sin fades)
+                const synth = createSynth('8bit', false).connect(channel);
+
+                audioNodesRef.current[pitch] = { synth, channel };
+
+                newTracks.push({
+                  id: pitch,
+                  pitch: pitch,
+                  notes: notesByPitch[pitch],
+                  muted: false,
+                  preset: '8bit',
+                  fades: false
+                });
+              });
+
+              // Ordenar pistas: b - a ordena de mayor a menor (de la nota más aguda a la más grave)
+              newTracks.sort((a, b) => b.notes[0].midi - a.notes[0].midi);
+
+              setTracks(newTracks);
+              setStatus('ready');
+
+            } catch (err) {
+              console.error(err);
+              setStatus('error');
+              setErrorMessage(err.message || "Error al procesar el archivo MIDI.");
+            }
+          };
+
+          const handlePlayStop = async () => {
+            try {
+              await window.Tone.start();
+
+              if (isPlaying) {
+                window.Tone.Transport.stop();
+                window.Tone.Transport.cancel();
+                Object.values(audioNodesRef.current).forEach(({ synth }) => {
+                  try { synth.releaseAll(); } catch(e){}
+                });
+                setIsPlaying(false);
+              } else {
+                window.Tone.Transport.stop();
+                window.Tone.Transport.cancel();
+
+                tracks.forEach(track => {
+                  track.notes.forEach(note => {
+                    window.Tone.Transport.schedule((time) => {
+                      // Obtener dinámicamente el synth actual para evitar referencias a synths eliminados
+                      const currentSynth = audioNodesRef.current[track.pitch]?.synth;
+                      if (currentSynth && !currentSynth.disposed) {
+                        try {
+                          currentSynth.triggerAttackRelease(note.name, note.duration, time, note.velocity);
+                        } catch (e) {
+                          // Ignorar si el synth fue eliminado justo en medio de la transición
+                        }
+                      }
+                    }, note.time);
+                  });
+                });
+
+                window.Tone.Transport.start();
+                setIsPlaying(true);
+              }
+            } catch (error) {
+              console.error("Error:", error);
+            }
+          };
+
+          const handleStop = () => {
+            if (!window.Tone) return;
+            window.Tone.Transport.stop();
+            window.Tone.Transport.cancel();
+            Object.values(audioNodesRef.current).forEach(({ synth }) => {
+              try { synth.releaseAll(); } catch(e){}
+            });
+            setIsPlaying(false);
+          };
+
+          const toggleMute = (pitchId) => {
+            setTracks(prevTracks => 
+              prevTracks.map(t => {
+                if (t.id === pitchId) {
+                  const newMutedState = !t.muted;
+                  if (audioNodesRef.current[pitchId]) {
+                    audioNodesRef.current[pitchId].channel.mute = newMutedState;
+                  }
+                  return { ...t, muted: newMutedState };
+                }
+                return t;
+              })
+            );
+          };
+
+          // Función auxiliar para actualizar el sintetizador de una pista
+          const updateSynthForTrack = (trackId, updatedTrack) => {
+            if (audioNodesRef.current[trackId]) {
+              const oldNode = audioNodesRef.current[trackId];
+              const oldSynth = oldNode.synth;
+              
+              const newSynth = createSynth(updatedTrack.preset, updatedTrack.fades).connect(oldNode.channel);
+              audioNodesRef.current[trackId].synth = newSynth;
+              
+              try { oldSynth.releaseAll(); } catch(e){}
+              setTimeout(() => {
+                try { oldSynth.dispose(); } catch(e){}
+              }, 2000); 
+            }
+          };
+
+          // Función para cambiar los ajustes individuales de cada pista
+          const handleTrackSettingChange = (trackId, field, value) => {
+            setTracks(prevTracks => 
+              prevTracks.map(t => {
+                if (t.id === trackId) {
+                  const updatedTrack = { ...t, [field]: value };
+                  updateSynthForTrack(trackId, updatedTrack);
+                  return updatedTrack;
+                }
+                return t;
+              })
+            );
+          };
+
+          // Funciones de Control Maestro
+          const handleGlobalPresetChange = (preset) => {
+            setGlobalPreset(preset);
+            setTracks(prevTracks => 
+              prevTracks.map(t => {
+                const updatedTrack = { ...t, preset: preset };
+                updateSynthForTrack(t.id, updatedTrack);
+                return updatedTrack;
+              })
+            );
+          };
+
+          const handleGlobalFadesChange = (fades) => {
+            setGlobalFades(fades);
+            setTracks(prevTracks => 
+              prevTracks.map(t => {
+                const updatedTrack = { ...t, fades: fades };
+                updateSynthForTrack(t.id, updatedTrack);
+                return updatedTrack;
+              })
+            );
+          };
+
+          const exportZip = async () => {
+            try {
+              const zip = new window.JSZip();
+              const MidiClass = window.Midi || (window.Tone && window.Tone.Midi);
+
+              tracks.forEach((track, index) => {
+                const newMidi = new MidiClass();
+                const midiTrack = newMidi.addTrack();
+                
+                track.notes.forEach(n => {
+                  midiTrack.addNote({
+                    midi: n.midi,
+                    time: n.time,
+                    duration: n.duration,
+                    velocity: n.velocity
+                  });
+                });
+
+                const buffer = newMidi.toArray();
+                const safeName = track.pitch.replace('#', 's'); 
+                
+                // Numeramos el archivo para que el sistema operativo mantenga el orden visual (agudo a grave)
+                const fileNumber = String(index + 1).padStart(3, '0');
+                zip.file(`${fileNumber}_Pista_${safeName}.mid`, buffer);
+              });
+
+              const zipBlob = await zip.generateAsync({ type: 'blob' });
+              const downloadUrl = URL.createObjectURL(zipBlob);
+              const a = document.createElement('a');
+              a.href = downloadUrl;
+              const baseName = fileName.replace(/\.[^/.]+$/, "");
+              a.download = `${baseName}_Separado.zip`;
+              document.body.appendChild(a);
+              a.click();
+              document.body.removeChild(a);
+              URL.revokeObjectURL(downloadUrl);
+
+            } catch (err) {
+              console.error("Error al exportar:", err);
+              alert("Ocurrió un error al generar el archivo ZIP.");
+            }
+          };
+
+          const handleDragOver = useCallback((e) => {
+            e.preventDefault();
+            setIsDragging(true);
+          }, []);
+
+          const handleDragLeave = useCallback((e) => {
+            e.preventDefault();
+            setIsDragging(false);
+          }, []);
+
+          const handleDrop = useCallback((e) => {
+            e.preventDefault();
+            setIsDragging(false);
+            if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+              const file = e.dataTransfer.files[0];
+              if (file.name.toLowerCase().match(/\.(mid|midi)$/)) {
+                processMidiFile(file);
+              } else {
+                setStatus('error');
+                setErrorMessage("Por favor, sube un archivo con extensión .mid o .midi");
+              }
+            }
+          }, []);
+
+          return (
+            <div className="min-h-screen bg-gray-950 text-gray-200 font-sans p-6 flex flex-col items-center">
+              
+              <div className="w-full max-w-5xl mb-6 flex flex-col items-center text-center mt-10">
+                <h1 className="text-4xl font-bold text-white mb-3 tracking-tight flex items-center gap-3">
+                  <IconFileAudio className="text-indigo-500" size={40} />
+                  Estudio MIDI Separador
+                </h1>
+                <p className="text-gray-400 text-lg">
+                  Sube un archivo MIDI multitrack. Lo separaremos nota por nota para que puedas preescucharlo, mutear pistas y exportar todo dividido.
+                </p>
+              </div>
+
+              {status === 'error' && (
+                <div className="w-full max-w-5xl mb-4 p-4 bg-red-900/40 border border-red-500/50 rounded-lg flex items-center gap-3 text-red-300">
+                  <IconAlertCircle size={24} />
+                  <p>{errorMessage}</p>
+                  <button 
+                    onClick={() => setStatus('idle')} 
+                    className="ml-auto px-3 py-1 bg-red-900/50 hover:bg-red-800 rounded text-sm transition-colors"
+                  >
+                    Reintentar
+                  </button>
+                </div>
+              )}
+
+              <div className="w-full max-w-5xl bg-gray-900 border border-gray-800 rounded-xl shadow-2xl overflow-hidden flex flex-col min-h-[500px]">
+                
+                {status === 'loading-libs' ? (
+                  <div className="flex-1 flex flex-col items-center justify-center text-indigo-400">
+                    <IconLoader2 className="animate-spin mb-4" size={56} />
+                    <p className="text-xl font-medium">Cargando motor de audio y librerías...</p>
+                    <p className="text-sm text-gray-500 mt-2">Asegúrate de estar conectado a internet la primera vez.</p>
+                  </div>
+                ) : status === 'idle' || status === 'error' ? (
+                  <div 
+                    onDragOver={handleDragOver}
+                    onDragLeave={handleDragLeave}
+                    onDrop={handleDrop}
+                    onClick={() => fileInputRef.current?.click()}
+                    className={`flex-1 flex flex-col items-center justify-center p-12 m-4 border-2 border-dashed rounded-xl cursor-pointer transition-all duration-200
+                      ${isDragging ? 'border-indigo-400 bg-indigo-900/20' : 'border-gray-700 hover:border-gray-500 hover:bg-gray-800/50'}
+                    `}
+                  >
+                    <input 
+                      type="file" 
+                      accept=".mid,.midi" 
+                      ref={fileInputRef} 
+                      onChange={(e) => e.target.files?.length && processMidiFile(e.target.files[0])} 
+                      className="hidden" 
+                    />
+                    <IconUpload size={72} className={`mb-6 ${isDragging ? 'text-indigo-400' : 'text-gray-500'}`} />
+                    <h3 className="text-3xl font-bold text-white mb-3">Arrastra tu archivo MIDI aquí</h3>
+                    <p className="text-gray-400 text-lg">O haz clic para explorar en tu equipo</p>
+                  </div>
+                ) : status === 'processing' ? (
+                  <div className="flex-1 flex flex-col items-center justify-center text-indigo-400">
+                    <IconLoader2 className="animate-spin mb-4" size={56} />
+                    <p className="text-xl font-medium">Procesando notas y cargando motor de audio...</p>
+                  </div>
+                ) : (
+                  <>
+                    <div className="bg-gray-800 p-5 border-b border-gray-700 flex flex-wrap items-center justify-between gap-4">
+                      <div className="flex items-center gap-5">
+                        <div className="flex bg-gray-950 rounded-lg p-1.5 border border-gray-700 shadow-inner">
+                          <button 
+                            onClick={handlePlayStop}
+                            className={`flex items-center justify-center w-14 h-12 rounded-md transition-all ${isPlaying ? 'bg-indigo-600/20 text-indigo-400 shadow-[inset_0_0_10px_rgba(79,70,229,0.2)]' : 'hover:bg-gray-800 text-gray-300'}`}
+                            title={isPlaying ? "Pausar" : "Reproducir"}
+                          >
+                            {isPlaying ? <IconSquare size={24} fill="currentColor" className="scale-75" /> : <IconPlay size={24} fill="currentColor" />}
+                          </button>
+                          <button 
+                            onClick={handleStop}
+                            className="flex items-center justify-center w-14 h-12 rounded-md hover:bg-gray-800 text-gray-400 hover:text-red-400 transition-colors"
+                            title="Detener y Reiniciar"
+                          >
+                            <IconSquare size={18} fill="currentColor" />
+                          </button>
+                        </div>
+                        
+                        <div className="flex flex-col">
+                          <span className="text-xs text-gray-400 font-mono">ARCHIVO ACTUAL</span>
+                          <span className="text-base font-semibold text-white truncate max-w-[250px]">{fileName}</span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-3">
+                        <button 
+                          onClick={() => {
+                            handleStop();
+                            setStatus('idle');
+                          }}
+                          className="px-5 py-2.5 bg-gray-800 hover:bg-gray-700 border border-gray-600 rounded-lg text-sm font-medium transition-colors text-gray-300"
+                        >
+                          Cargar Otro
+                        </button>
+                        <button 
+                          onClick={exportZip}
+                          className="flex items-center gap-2 px-6 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-medium rounded-lg shadow-lg shadow-indigo-900/20 transition-all active:scale-95"
+                        >
+                          <IconDownload size={20} />
+                          Exportar ZIP Separado
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Controles Globales (Padre) */}
+                    <div className="bg-indigo-950/40 border-b border-indigo-900/50 p-3 flex flex-wrap items-center justify-between gap-4 px-6">
+                      <div className="flex items-center gap-2 text-indigo-300 text-sm font-semibold">
+                        <IconMusic size={18} />
+                        <span>Control Maestro (Aplica a todas las pistas)</span>
+                      </div>
+                      
+                      <div className="flex items-center gap-6">
+                        <label className="flex items-center gap-2 text-sm text-indigo-200 cursor-pointer hover:text-white transition-colors" title="Activa Fades en todas las pistas">
+                          <input 
+                            type="checkbox" 
+                            checked={globalFades}
+                            onChange={(e) => handleGlobalFadesChange(e.target.checked)}
+                            className="w-4 h-4 rounded accent-indigo-500 bg-gray-900 cursor-pointer"
+                          />
+                          Fades Maestros
+                        </label>
+                        
+                        <div className="flex items-center gap-2 bg-gray-900 px-3 py-1.5 rounded-lg border border-indigo-500/30 shadow-inner">
+                          <select 
+                            value={globalPreset}
+                            onChange={(e) => handleGlobalPresetChange(e.target.value)}
+                            className="bg-transparent border-none text-indigo-200 font-medium text-sm focus:ring-0 outline-none cursor-pointer"
+                          >
+                            <option value="8bit">Todos: 8-Bit</option>
+                            <option value="tecno">Todos: Tecno</option>
+                            <option value="clasica">Todos: Clásica</option>
+                            <option value="acustica">Todos: Acústica</option>
+                            <option value="electronica">Todos: Electrónica</option>
+                            <option value="rock">Todos: Rock</option>
+                          </select>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex-1 overflow-y-auto bg-gray-950 p-4">
+                      <div className="grid grid-cols-12 gap-4 text-xs font-bold text-gray-500 uppercase px-6 py-3 mb-3 border-b border-gray-800">
+                        <div className="col-span-1 text-center">Estado</div>
+                        <div className="col-span-2">Nota / Tono</div>
+                        <div className="col-span-3">Total Eventos</div>
+                        <div className="col-span-6 text-right">Instrumento & Ajustes</div>
+                      </div>
+
+                      <div className="space-y-2 px-2 pb-6">
+                        {tracks.map((track) => (
+                          <div 
+                            key={track.id} 
+                            className={`grid grid-cols-12 items-center gap-4 p-3 rounded-lg border transition-colors ${track.muted ? 'bg-gray-900 border-gray-800 opacity-60' : 'bg-gray-800/80 border-gray-700 hover:bg-gray-700'}`}
+                          >
+                            <div className="col-span-1 flex justify-center">
+                              <button
+                                onClick={() => toggleMute(track.id)}
+                                className={`w-10 h-10 flex items-center justify-center rounded-md transition-all ${track.muted ? 'bg-red-500/20 text-red-400 border border-red-500/30' : 'bg-gray-900 text-emerald-400 border border-gray-600 hover:bg-gray-800'}`}
+                                title={track.muted ? "Desmutear" : "Mutear"}
+                              >
+                                {track.muted ? <IconVolumeX size={18} /> : <IconVolume2 size={18} />}
+                              </button>
+                            </div>
+
+                            <div className="col-span-2 flex items-center gap-4">
+                              <div className="w-12 h-12 rounded-md bg-gray-900 border border-gray-600 flex items-center justify-center text-xl font-bold text-indigo-400 shadow-inner">
+                                {track.pitch.replace('#', '♯')}
+                              </div>
+                              <span className="text-base font-medium text-gray-200">{track.pitch}</span>
+                            </div>
+
+                            <div className="col-span-3 flex items-center text-sm text-gray-400 font-mono">
+                              {track.notes.length} notas detectadas
+                            </div>
+
+                            <div className="col-span-6 flex justify-end items-center gap-4">
+                              <label className="flex items-center gap-2 text-sm text-gray-300 cursor-pointer hover:text-white transition-colors" title="Activar fundido en notas (Ataque y Cola más suaves)">
+                                <input 
+                                  type="checkbox" 
+                                  checked={track.fades}
+                                  onChange={(e) => handleTrackSettingChange(track.id, 'fades', e.target.checked)}
+                                  className="w-4 h-4 rounded accent-indigo-500 bg-gray-900 cursor-pointer"
+                                />
+                                Fades
+                              </label>
+                              <div className="flex items-center gap-2 bg-gray-900 px-3 py-2 rounded-lg border border-gray-700 shadow-inner">
+                                <IconMusic size={16} className="text-gray-400" />
+                                <select 
+                                  value={track.preset}
+                                  onChange={(e) => handleTrackSettingChange(track.id, 'preset', e.target.value)}
+                                  className="bg-transparent border-none text-gray-200 text-sm focus:ring-0 outline-none cursor-pointer"
+                                >
+                                  <option value="8bit">8-Bit (Cuadrada)</option>
+                                  <option value="tecno">Tecno (FM Synth)</option>
+                                  <option value="clasica">Clásica (Suave)</option>
+                                  <option value="acustica">Acústica (Senoide)</option>
+                                  <option value="electronica">Electrónica (Sierra)</option>
+                                  <option value="rock">Rock (Distorsión)</option>
+                                </select>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
+          );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<MidiStudioApp />);
+    </script>
+</body>
+</html>
